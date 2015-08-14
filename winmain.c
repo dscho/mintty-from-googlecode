@@ -16,6 +16,8 @@
 #include <shellapi.h>
 
 #include <sys/cygwin.h>
+#include <propsys.h>
+#include <propkey.h>
 
 HINSTANCE inst;
 HWND wnd;
@@ -981,6 +983,45 @@ main(int argc, char *argv[])
                         WS_OVERLAPPEDWINDOW | (cfg.scrollbar ? WS_VSCROLL : 0),
                         cfg.x, cfg.y, width, height,
                         null, null, inst, null);
+
+  // Set RelaunchCommand if specified and the required function is available.
+  if (*cfg.relaunch_command || *cfg.relaunch_display_name) {
+    HMODULE shell = load_sys_library("shell32.dll");
+    HRESULT (WINAPI *pGetPropertyStore)(HWND hwnd, REFIID riid, void **ppv) =
+      (void *)GetProcAddress(shell, "SHGetPropertyStoreForWindow");
+
+    if (pGetPropertyStore) {
+      size_t size;
+      IPropertyStore *pps;
+      HRESULT hr;
+      PROPVARIANT var;
+
+      hr = pGetPropertyStore(wnd, &IID_IPropertyStore, (void **) &pps);
+      if (SUCCEEDED(hr)) {
+        if (*cfg.relaunch_command &&
+            (size = cs_mbstowcs(0, cfg.app_id, 0) + 1)) {
+          var.pwszVal = malloc(size * sizeof(wchar));
+          if (var.pszVal) {
+            cs_mbstowcs(var.pwszVal, cfg.relaunch_command, size);
+            var.vt = VT_LPWSTR;
+            pps->lpVtbl->SetValue(pps,
+                &PKEY_AppUserModel_RelaunchCommand, &var);
+          }
+        }
+        if (*cfg.relaunch_display_name &&
+            (size = cs_mbstowcs(0, cfg.app_id, 0) + 1)) {
+          var.pwszVal = malloc(size * sizeof(wchar));
+          if (var.pszVal) {
+            cs_mbstowcs(var.pwszVal, cfg.relaunch_display_name, size);
+            var.vt = VT_LPWSTR;
+            pps->lpVtbl->SetValue(pps,
+                &PKEY_AppUserModel_RelaunchDisplayNameResource, &var);
+          }
+        }
+        pps->lpVtbl->Release(pps);
+      }
+    }
+  }
 
   // The input method context.
   imc = ImmGetContext(wnd);

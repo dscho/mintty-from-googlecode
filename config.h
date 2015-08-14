@@ -94,7 +94,7 @@ typedef struct {
   char window;
   int x, y;
   // "Hidden"
-  string app_id;
+  string app_id, relaunch_command, relaunch_display_name;
   int col_spacing, row_spacing;
   string word_chars;
   colour ime_cursor_colour;
